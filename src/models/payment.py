@@ -6,10 +6,11 @@ from sqlalchemy import Enum, String, Numeric, DateTime, Index, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from .base import Base
+from .mixins import UUIDPKMixin, CreatedAtMixin
+from .enums import PaymentStatus, CurrencyType
+
 if TYPE_CHECKING:
-    from .base import Base
-    from .mixins import UUIDPKMixin, CreatedAtMixin
-    from .enums import PaymentStatus, CurrencyType
     from .outbox import OutboxEventOrm
 
 

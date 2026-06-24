@@ -33,7 +33,7 @@ class ApiPrefix(BaseModel):
 
 class DbConfig(BaseModel):
     host: str = "localhost"
-    passwd: str | None = None
+    passwd: str = "postgres"
     user: str = "postgres"
     name: str = "postgres"
     port: int = 5432
@@ -56,7 +56,6 @@ class Settings(BaseSettings):
         env_file=BASE_PATH / ".env",
         case_sensitive=False,
         env_nested_delimiter="__",
-        env_prefix="APP_CONFIG__",
     )
     logger: LoggerConfig = LoggerConfig()
     api: ApiPrefix = ApiPrefix()

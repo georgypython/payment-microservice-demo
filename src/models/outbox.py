@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, String, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from .base import Base
+from .mixins import CreatedAtMixin, UUIDPKMixin
+
 if TYPE_CHECKING:
-    from .base import Base
-    from .mixins import CreatedAtMixin, UUIDPKMixin
     from .payment import PaymentOrm
 
 
@@ -25,10 +26,10 @@ class OutboxEventOrm(Base, UUIDPKMixin, CreatedAtMixin):
         "PaymentOrm", back_populates="outbox_events"
     )
 
-    __table_args__ = ( 
+    __table_args__ = (
         Index(
             "ix_outbox_unprocessed_created_at",
             "created_at",
             postgresql_where="is_processed = FALSE",
-        )
+        ),
     )
