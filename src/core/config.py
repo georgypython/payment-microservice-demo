@@ -10,6 +10,7 @@ BASE_PATH = Path(__file__).resolve().parent.parent.parent
 class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
+    title: str = "Payment Microservice Test"
 
 
 class LoggerConfig(BaseModel):
@@ -50,6 +51,7 @@ class DbConfig(BaseModel):
     def url_async(self):
         return f"postgresql+asyncpg://{self.user}:{self.passwd}@{self.host}:{self.port}/{self.name}"
 
+
 class AuthConfig(BaseModel):
     api_key: str = "your_secret_api_key"
 
@@ -65,5 +67,6 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     db: DbConfig = DbConfig()
     auth: AuthConfig = AuthConfig()
+
 
 settings = Settings()

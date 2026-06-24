@@ -22,11 +22,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     default_response_class=ORJSONResponse,
+    title=settings.run.title,
 )
 
 setup_dishka(container=container, app=app)
 
-app.include_router(api_router)
+app.include_router(api_router, prefix=settings.api.prefix)
 
 
 if __name__ == "__main__":
