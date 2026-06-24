@@ -55,6 +55,18 @@ class DbConfig(BaseModel):
 class AuthConfig(BaseModel):
     api_key: str = "your_secret_api_key"
 
+class RabbitConfig(BaseModel):
+    host: str = "localhost"
+    user: str = "guest"
+    passwd: str = "guest"
+    port: int = 5672
+    vhost: str = "/"
+
+    @property
+    def url(self) -> str:
+        vhost_clean = self.vhost.lstrip("/")
+        return f"amqp://{self.user}:{self.passwd}@{self.host}:{self.port}/{vhost_clean}"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -67,6 +79,7 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     db: DbConfig = DbConfig()
     auth: AuthConfig = AuthConfig()
+    rabbit: RabbitConfig = RabbitConfig()
 
 
 settings = Settings()
