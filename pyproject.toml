@@ -10,6 +10,7 @@ dependencies = [
     "black>=26.1.0",
     "dishka>=1.7.2",
     "fastapi[standard]>=0.127.0",
+    "faststream[rabbit]>=0.7.1",
     "orjson>=3.11.5",
     "psycopg2-binary>=2.9.11",
     "pydantic-settings>=2.12.0",
