@@ -25,8 +25,10 @@ class OutboxEventOrm(Base, UUIDPKMixin, CreatedAtMixin):
         "PaymentOrm", back_populates="outbox_events"
     )
 
-    __table_args__ = Index(
-        "ix_outbox_unprocessed_created_at",
-        "created_at",
-        postgresql_where="is_processed = FALSE",
+    __table_args__ = ( 
+        Index(
+            "ix_outbox_unprocessed_created_at",
+            "created_at",
+            postgresql_where="is_processed = FALSE",
+        )
     )
