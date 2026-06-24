@@ -1,13 +1,16 @@
 from decimal import Decimal
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, String, Numeric, DateTime, Index, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base
-from .mixins import UUIDPKMixin, CreatedAtMixin
-from .enums import PaymentStatus, CurrencyType
+if TYPE_CHECKING:
+    from .base import Base
+    from .mixins import UUIDPKMixin, CreatedAtMixin
+    from .enums import PaymentStatus, CurrencyType
+    from .outbox import OutboxEventOrm
 
 
 class PaymentOrm(Base, UUIDPKMixin, CreatedAtMixin):
@@ -41,6 +44,10 @@ class PaymentOrm(Base, UUIDPKMixin, CreatedAtMixin):
         DateTime(timezone=True),
         nullable=True,
         default=None,
+    )
+
+    outbox_events: Mapped[list["OutboxEventOrm"]] = relationship(
+        "OutboxEventOrm", back_populates="payment"
     )
 
     __table_args__ = (
