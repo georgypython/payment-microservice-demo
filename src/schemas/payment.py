@@ -1,6 +1,8 @@
+from datetime import datetime
+from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
-from src.models.enums import CurrencyType
+from src.models.enums import CurrencyType, PaymentStatus
 
 FORBIDDEN_HOSTS = [
     "localhost",
@@ -32,3 +34,13 @@ class CreatePaymentSchema(BaseModel):
         if value.lower() in FORBIDDEN_HOSTS:
             raise ValueError("Invalid webhook_url")
         return value
+
+
+class PaymentEventSchema(BaseModel):
+    payment_id: UUID
+
+
+class CreatedPaymentSchema(BaseModel):
+    payment_id: UUID
+    status: PaymentStatus
+    created_at: datetime

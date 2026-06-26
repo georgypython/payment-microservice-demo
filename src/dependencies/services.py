@@ -14,4 +14,5 @@ class ServicesProvider(Provider):
             broker,
             queue="payments",
             exchange="",
+            event_max_attempts=3,
         )

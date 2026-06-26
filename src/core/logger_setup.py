@@ -13,6 +13,7 @@ def setup_logger(
     log_format: str,
     max_bytes: int,
     backup_count: int,
+    path: Path,
 ) -> Logger:
     logs_path.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ def setup_logger(
     formatter = logging.Formatter(log_format)
 
     file_handler = RotatingFileHandler(
-        settings.logger_config.logger_path,
+        path,
         maxBytes=max_bytes,
         backupCount=backup_count,
         encoding="utf-8",
@@ -41,4 +42,5 @@ logger = setup_logger(
     log_format=settings.logger.log_format,
     max_bytes=settings.logger.max_bytes,
     backup_count=settings.logger.backup_count,
+    path=settings.logger.logs_path,
 )
