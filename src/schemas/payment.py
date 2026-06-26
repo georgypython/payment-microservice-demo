@@ -1,6 +1,8 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, field_validator
+from decimal import Decimal
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from src.models.enums import CurrencyType, PaymentStatus
 
@@ -40,7 +42,21 @@ class PaymentEventSchema(BaseModel):
     payment_id: UUID
 
 
-class CreatedPaymentSchema(BaseModel):
-    payment_id: UUID
+class NewPaymentResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
     status: PaymentStatus
     created_at: datetime
+
+
+class PaymentFullResponseSchema(NewPaymentResponseSchema):
+    model_config = ConfigDict(from_attributes=True)
+
+    amount: Decimal
+    currency: CurrencyType
+    description: str | None = None
+    meta_info: dict | None = None
+    idempotency_key: str = Field(..., max_length=64)
+    webhook_url: str = Field(..., max_length=2048)
+    processing_at: datetime | None = None

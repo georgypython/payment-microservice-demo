@@ -1,12 +1,15 @@
+from uuid import UUID
+
 from faststream.rabbit import RabbitBroker
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from src.exceptions.payments import IdempotencyKeyError
+from src.exceptions.payments import IdempotencyKeyError, NotFoundError
 from src.schemas.payment import (
     CreatePaymentSchema,
-    CreatedPaymentSchema,
+    NewPaymentResponseSchema,
     PaymentEventSchema,
+    PaymentFullResponseSchema,
 )
 from src.models import PaymentOrm, OutboxEventOrm
 from src.models.enums import PaymentStatus
@@ -58,7 +61,7 @@ class PaymentsService:
 
     async def create_payment(
         self, payment: CreatePaymentSchema, idempotency_key: str
-    ) -> CreatedPaymentSchema:
+    ) -> NewPaymentResponseSchema:
         try:
             payment_orm = await self._add_new_payment_orm(payment, idempotency_key)
             payment_id = payment_orm.id
@@ -85,8 +88,10 @@ class PaymentsService:
             logger.warning(
                 f"Broker publish failed, message handles by daemon. Error: {e}"
             )
-        return CreatedPaymentSchema(
-            payment_id=payment_id,
-            status=payment_orm.status,
-            created_at=payment_orm.created_at,
-        )
+        return NewPaymentResponseSchema.model_validate(payment_orm)
+
+    async def get_payment_info(self, payment_id: UUID):
+        payment = await self.session.get(PaymentOrm, payment_id)
+        if not payment:
+            raise NotFoundError
+        return PaymentFullResponseSchema.model_validate(payment)
