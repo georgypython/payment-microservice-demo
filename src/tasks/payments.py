@@ -1,14 +1,11 @@
-from faststream import Depends
 from faststream.rabbit import RabbitRouter
+from dishka.integrations.faststream import FromDishka
 
-from .broker import broker
-from src.core.config import settings
+from src.services import PaymentsService
+
+router = RabbitRouter(prefix="payments")
 
 
-@broker.subscriber(
-    queue=settings.payments.payment_queue, 
-    exchange=settings.payments.payment_exchange
-)
-async def new_payment(
-
-):
+@router.subscriber(queue="new")
+async def new_payment(service: FromDishka[PaymentsService]):
+    pass

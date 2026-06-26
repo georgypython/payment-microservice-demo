@@ -32,4 +32,3 @@ class PaymentsService:
         )
         self.session.add(outbox_event_orm)
         await self.session.commit()
-
