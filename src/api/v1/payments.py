@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from dishka.integrations.fastapi import FromDishka, DishkaRoute
 
 from src.dependencies.auth import require_api_key
+from src.exceptions.payments import IdempotencyKeyError
 from src.schemas.payment import CreatePaymentSchema
 from src.services.payments import PaymentsService
 
@@ -17,4 +18,9 @@ async def create_new_payment(
     service: FromDishka[PaymentsService],
     idempotency_key: str = Header(..., alias="Idempotency-Key", max_length=64),
 ):
-    result = await service.create_payment(payment, idempotency_key)
+    try:
+        return await service.create_payment(payment, idempotency_key)
+    except IdempotencyKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Idempotency key conflict"
+        )

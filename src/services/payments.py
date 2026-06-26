@@ -1,6 +1,8 @@
 from faststream.rabbit import RabbitBroker
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
+from src.exceptions.payments import IdempotencyKeyError
 from src.schemas.payment import (
     CreatePaymentSchema,
     CreatedPaymentSchema,
@@ -57,16 +59,21 @@ class PaymentsService:
     async def create_payment(
         self, payment: CreatePaymentSchema, idempotency_key: str
     ) -> CreatedPaymentSchema:
-        payment_orm = await self._add_new_payment_orm(payment, idempotency_key)
-        payment_id = payment_orm.id
-        message = PaymentEventSchema(payment_id=payment_id)
-        queue = self.queue + ".new"
+        try:
+            payment_orm = await self._add_new_payment_orm(payment, idempotency_key)
+            payment_id = payment_orm.id
+            message = PaymentEventSchema(payment_id=payment_id)
+            queue = self.queue + ".new"
 
-        event_orm = await self._add_new_outbox_event_orm(
-            idempotency_key, message.model_dump(), queue
-        )
-        await self.session.commit()
-        logger.info(f"New payment with outbox created, id: {payment_id}")
+            event_orm = await self._add_new_outbox_event_orm(
+                idempotency_key, message.model_dump(), queue
+            )
+            await self.session.commit()
+            logger.info(f"New payment with outbox created, id: {payment_id}")
+        except IntegrityError as e:
+            await self.session.rollback()
+            logger.warning(f"Idempotency key conflict for key: {idempotency_key}")
+            raise IdempotencyKeyError
 
         try:
             await self.broker.publish(
