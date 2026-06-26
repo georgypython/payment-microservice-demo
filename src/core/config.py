@@ -73,6 +73,11 @@ class RabbitConfig(BaseModel):
     fail_fast: bool = True
 
 
+class PaymentsConfig(BaseModel):
+    payment_queue: str = "payments.new"
+    payment_exchange: str = ""
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=BASE_PATH / ".env",
@@ -85,6 +90,7 @@ class Settings(BaseSettings):
     db: DbConfig = DbConfig()
     auth: AuthConfig = AuthConfig()
     rabbit: RabbitConfig = RabbitConfig()
+    payments: PaymentsConfig = PaymentsConfig()
 
 
 settings = Settings()

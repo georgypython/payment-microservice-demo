@@ -17,7 +17,7 @@ class OutboxEventOrm(Base, UUIDPKMixin, CreatedAtMixin):
         ForeignKey("payments.id", ondelete="CASCADE"), nullable=False
     )
     exchange: Mapped[str] = mapped_column(String(255), nullable=False)
-    routing_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    queue: Mapped[str] = mapped_column(String(255), nullable=False)
     is_processed: Mapped[bool] = mapped_column(
         default=False, index=True, nullable=False
     )
