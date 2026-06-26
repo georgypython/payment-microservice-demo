@@ -1,10 +1,11 @@
-from dishka import Provider, Scope, provide
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.dependencies.session import get_session
 from src.services import PaymentsService
 
 
-class ServicesProvider(Provider):
-    @provide(scope=Scope.REQUEST)
-    async def get_payments_service(self, session: AsyncSession) -> PaymentsService:
-        return PaymentsService(session)
+async def get_payments_service(
+    session: AsyncSession = Depends(get_session),
+) -> PaymentsService:
+    return PaymentsService(session)

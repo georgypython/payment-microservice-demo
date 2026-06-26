@@ -45,8 +45,7 @@ class DbConfig(BaseModel):
         "ck": "ck_%(table_name)s_%(constraint_name)s",
         "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
         "pk": "pk_%(table_name)s",
-  
-        }
+    }
 
     @property
     def url_async(self):
@@ -55,6 +54,7 @@ class DbConfig(BaseModel):
 
 class AuthConfig(BaseModel):
     api_key: str = "your_secret_api_key"
+
 
 class RabbitConfig(BaseModel):
     host: str = "localhost"
@@ -71,6 +71,7 @@ class RabbitConfig(BaseModel):
     graceful_timeout: int = 15
     recconect_interval: int = 5
     fail_fast: bool = True
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

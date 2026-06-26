@@ -6,15 +6,15 @@ FORBIDDEN_HOSTS = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
-    "[::1]",       
-    "192.168.",    
-    "172.16.",     
+    "[::1]",
+    "192.168.",
+    "172.16.",
     "172.17.",
     "172.18.",
     "172.19.",
     "172.20.",
     "172.30.",
-    "172.31.", 
+    "172.31.",
     "postgres",
     "rabbitmq",
 ]
@@ -32,4 +32,3 @@ class CreatePaymentSchema(BaseModel):
         if value.lower() in FORBIDDEN_HOSTS:
             raise ValueError("Invalid webhook_url")
         return value
-
