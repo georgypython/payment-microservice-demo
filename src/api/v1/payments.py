@@ -2,7 +2,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from dishka.integrations.fastapi import FromDishka, DishkaRoute
-from starlette.status import HTTP_404_NOT_FOUND
 
 from src.dependencies.auth import require_api_key
 from src.exceptions.payments import IdempotencyKeyError, NotFoundError
@@ -10,8 +9,7 @@ from src.schemas.payment import CreatePaymentSchema, NewPaymentResponseSchema
 from src.services import PaymentAcceptanceService
 
 router = APIRouter(
-    dependencies=[Depends(require_api_key)],
-    route_class=DishkaRoute,
+    dependencies=[Depends(require_api_key)], route_class=DishkaRoute, tags=["Payments"]
 )
 
 
@@ -23,6 +21,9 @@ async def create_new_payment(
     service: FromDishka[PaymentAcceptanceService],
     idempotency_key: str = Header(..., alias="Idempotency-Key", max_length=64),
 ):
+    """
+    Создание нового платежа
+    """
     try:
         return await service.create_payment(payment, idempotency_key)
     except IdempotencyKeyError:
@@ -36,7 +37,12 @@ async def get_payment_info(
     payment_id: UUID,
     service: FromDishka[PaymentAcceptanceService],
 ):
+    """
+    Получить детальную инфо о платеже по id
+    """
     try:
         return await service.get_payment_info(payment_id)
     except NotFoundError:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Payment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found"
+        )

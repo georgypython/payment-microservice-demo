@@ -27,12 +27,12 @@ class PaymentProcessingService:
 
     async def _send_webhook(self, url: str, payload: WebhookPayloadSchema) -> bool:
         try:
-            response = await self.http_client.post(url, json=payload)
+            response = await self.http_client.post(url, json=payload.model_dump())
             response.raise_for_status()
             return True
         except Exception as e:
             logger.error(
-                f"Error while sending webhook: {e} for payment with id: {payload.id}"
+                f"Error while sending webhook: {e} for payment with id: {payload.payment_id}"
             )
             return False
 
@@ -44,7 +44,7 @@ class PaymentProcessingService:
 
         if not payment_orm:
             logger.error(
-                f"Payment with id: {id} finished with status: {status} and not found in db"
+                f"Payment with id: {payment.payment_id} finished with status: {status} and not found in db"
             )
             return False
 
@@ -53,7 +53,12 @@ class PaymentProcessingService:
 
         await self.session.commit()
 
-        webhook_payload = WebhookPayloadSchema.model_validate(payment_orm)
+        webhook_payload = WebhookPayloadSchema(
+            payment_id=str(payment_orm.id),
+            status=payment_orm.status,
+            amount=str(payment_orm.amount),
+            currency=payment_orm.currency,
+        )
         current_att = 0
         while current_att < self.max_attempts:
             result = await self._send_webhook(payment_orm.webhook_url, webhook_payload)

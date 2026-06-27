@@ -6,6 +6,7 @@ from src.core.logger_setup import logger
 
 
 async def outbox_daemon(container: AsyncContainer, sleep_delay: int) -> None:
+    logger.info("Outbox daemon start recieve events")
     while True:
         try:
             async with container() as req_container:

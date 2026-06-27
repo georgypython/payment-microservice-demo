@@ -39,7 +39,6 @@ class PaymentAcceptanceService:
             exchange=self.exchange,
             queue=queue,
             attempt=0,
-            max_attempts=self.event_max_attempts,
             message=message,
             is_processed=False,
         )
@@ -65,7 +64,7 @@ class PaymentAcceptanceService:
         try:
             payment_orm = await self._add_new_payment_orm(payment, idempotency_key)
             payment_id = payment_orm.id
-            message = PaymentEventSchema(payment_id=payment_id)
+            message = PaymentEventSchema(payment_id=str(payment_id))
 
             event_orm = await self._add_new_outbox_event_orm(
                 idempotency_key, message.model_dump(), self.queue

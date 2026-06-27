@@ -1,4 +1,5 @@
 from datetime import datetime
+from urllib.parse import urlparse
 from uuid import UUID
 from decimal import Decimal
 
@@ -33,13 +34,25 @@ class CreatePaymentSchema(BaseModel):
 
     @field_validator("webhook_url")
     def is_valid_url(cls, value: str) -> str:
-        if value.lower() in FORBIDDEN_HOSTS:
-            raise ValueError("Invalid webhook_url")
+        try:
+            parsed_url = urlparse(value)
+
+            host = parsed_url.hostname
+            if not host:
+                host = value.split(":")[0].split("/")[0]
+            host = host.lower()
+
+            if host in FORBIDDEN_HOSTS or any(
+                host.startswith(fh) for fh in FORBIDDEN_HOSTS
+            ):
+                raise ValueError("Invalid webhook_url")
+        except Exception:
+            raise ValueError("Invalid webhook_url format")
         return value
 
 
 class PaymentEventSchema(BaseModel):
-    payment_id: UUID
+    payment_id: str
 
 
 class NewPaymentResponseSchema(BaseModel):
@@ -65,7 +78,7 @@ class PaymentFullResponseSchema(NewPaymentResponseSchema):
 class WebhookPayloadSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
+    payment_id: str
     status: PaymentStatus
-    amount: Decimal
+    amount: str
     currency: CurrencyType

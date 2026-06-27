@@ -2,7 +2,6 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import ORJSONResponse
 import uvicorn
 from dishka.integrations.fastapi import setup_dishka
 
@@ -34,7 +33,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     lifespan=lifespan,
-    default_response_class=ORJSONResponse,
     title=settings.run.title,
 )
 
