@@ -121,7 +121,7 @@ curl -i -X POST "http://localhost:8000/api/v1/payments" \
     "currency": "eur",
     "description": "SSRF test",
     "meta_info": {},
-    "webhook_url": "[http://127.0.0.1:5432](http://127.0.0.1:5432)"
+    "webhook_url": "http://localhost:5000"
   }'
 ```
 
