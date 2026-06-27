@@ -1,25 +1,147 @@
-# FastAPI Application Template
+# Тестовое задание: Сервис асинхронного процессинга платежей
 
-Minimal FastAPI backend template I use to quickly start new services and prototypes.
+Сервис принимает запросы на оплату, обрабатывает их через эмуляцию шлюза и шлет вебхуки с результатом. Сделано с расчетом на надежность и скорость, без лишних тормозов при обработке запроса.
 
-The goal of this template is to minimize setup time and provide a clean, predictable base for small microservices and MVPs.
-It reflects my personal approach to how a Python backend should look at the early stage:
-explicit dependency injection, clear boundaries, and simple but robust structure.
+---
 
-This is not a tutorial or showcase project — it is a practical production-oriented template.
+## Как устроена архитектура
 
-## Tech focus
-- FastAPI
-- explicit DI (Dishka)
-- clear scopes and lifetimes
-- structured configuration and startup flow
-- async-first approach
-- Domain layered architecture
+Вместо стандартной сухой реализации из учебников, я доработал несколько моментов, чтобы система вела себя как реальный продакшн-сервис.
 
-## Run locally
+### 1. Оптимизированный Outbox паттерн
+Чтобы гарантировать доставку сообщений и не ломать транзакционность, платеж и событие для брокера сохраняются в базу (`outbox_events`) атомарно в одной транзакции. 
 
+Но если просто складывать задачи в базу и ждать фоновый outbox процесс обработки — клиент будет получать тупые задержки. Поэтому я разделил логику:
+* **Основной путь (быстрый):** Сразу после успешного коммита в БД, API сам пытается напрямую выстрелить сообщением в RabbitMQ. В 99% случаев это происходит мгновенно, и сообщение улетает в воркер без задержек.
+* **Резервный путь (медленный)** Если в момент прямой отправки RabbitMQ прилег, моргнула сеть или брокер перегружен — API **не падает с ошибкой** и спокойно отдает клиенту `202 Accepted`. Запись уже в базе. Фоновый задача `outbox_daemon` раз в несколько секунд сканирует таблицу аутбокса, находит пропущенные задачи и гарантированно с повторной обработкой ошибок и счетчиком ретраев досылает их в Кролика.
+
+### 2. Полная изоляция воркера
+Воркер (`src/consumers/payments.py`) спроектирован максимально независимым. Он **абсолютно ничего не знает про таблицу `outbox_events`** и логику сохранения событий. Он просто сидит на очереди RabbitMQ, забирает оттуда чистый JSON, эмулирует шлюз (2-5 сек, 10% ошибок), обновляет статус самого платежа и шлет вебхук.
+
+### 3. Логика ретраев и DLQ (Dead Letter Queue)
+При отправке вебхука воркер делает 3 попытки с экспоненциальной задержкой (если клиентский сервер временно лежит). Если после 3 раз вебхук так и не ушел, сообщение отправляется в дед-леттер очередь `payments.new.dlq`. 
+*(Важно: Очередь DLQ декларируется принудительно на старте воркера, чтобы сообщения не терялись в пустоте, если в Кролике её забыли создать руками).*
+
+### 4. Идемпотентность и базовая защита от SSRF
+* **Идемпотентность:** Жестко проверяется по заголовку `Idempotency-Key`. Повторный запрос с тем же ключом не создает платеж и не плодит события, а сразу возвращает `409 Conflict` (так же колонка `idempotency_key` в БД уникальна).
+* **Защита от SSRF:** Так как URL вебхука передается в body запроса, я от себя накрутил на него базовый валидатор для защиты от SSRF атак.
+---
+
+## Структура кода (`src/`)
+
+Вся логика раскидана по слоям, сервисы и клиенты собираются через DI-контейнер Dishka.
+
+* `src/api/` — HTTP эндпоинты на FastAPI.
+* `src/consumers/` — Подписчики RabbitMQ. Тут лежит FastStream воркер, который обрабатывает платежи.
+* `src/core/` — Конфиг приложения (pydantic-settings) и настройки логгера.
+* `src/dependencies/` — Настройка DI-контейнера Dishka (сборка инфраструктуры и сервисов).
+* `src/exceptions/` — Внутренние классы ошибок бизнес-логики.
+* `src/infrastructure/` — Инициализация клиентов (асинхронный движок SQLAlchemy через хелпер-помощник и RabbitBroker).
+* `src/models/` — ORM модели для SQLAlchemy (таблицы `payments` и `outbox_events`).
+* `src/schemas/` — Pydantic схемы для валидации запросов.
+* `src/services/` — Сервисы с бизнес логикой по каждому сценарию (Прием платежа, обработка платежа, обработка outbox эвентов)
+* `src/workers/` — Точки входа для: `faststream.py` (воркер очереди) и `outbox_daemon.py` (фоновый демон аутбокса - в данном случае реализовал через обычный asyncio.create_task в lifespan приложения).
+
+---
+
+## Инструкция по запуску
+
+Проект полностью настроен и заведется на дефолтных значениях (`guest` для rabbitmq и `postgres` для db). Нужно только создать `.env` файл и прописать туда API ключ по аналогии с `.env.example` (по умолчанию ключ там называется `your_secret_key` - для удобства тестирования можно так и оставить).
+
+Запуск:
+
+1. Сделать копию конфига:
 ```bash
-uv sync
-docker compose up -d
-uv run uvicorn main:app --reload
+cp .env.example .env
 ```
+
+2. Поднять compose (миграции для удобства накатятся автоматически в контейнере api):
+```bash
+docker compose up --build -d
+```
+
+
+## Тестирование
+
+Для начала следует получить свой URL для приема вебхуков на `https://webhook.site`
+В последующих Payload для приема вебхуков необходимо заменить URL на него.
+
+Примеры CURL запросов:
+
+1. Создание обычного платежа (202 Accepted)
+
+```Bash
+curl -i -X POST "http://localhost:8000/api/v1/payments" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_secret_key" \
+  -H "Idempotency-Key: pay_req_uuid_001" \
+  -d '{
+    "amount": 2500.75,
+    "currency": "rub",
+    "description": "Оплата заказа #432",
+    "meta_info": {"user_id": 99, "device": "mobile"},
+    "webhook_url": "https://webhook.site/твой_webhook_id"
+  }'
+```
+
+2. Проверка идемпотентности (Должен вернуть 409)
+Повтори предыдущий запрос с тем же самым Idempotency-Key. База не задублируется, сервер выдаст конфликт:
+
+```JSON
+{
+  "detail": "Idempotency key conflict"
+}
+```
+
+3. Платеж в другой валюте (USD)
+```Bash
+curl -i -X POST "http://localhost:8000/api/v1/payments" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_secret_key" \
+  -H "Idempotency-Key: pay_req_uuid_002" \
+  -d '{
+    "amount": 50.00,
+    "currency": "usd",
+    "description": "Subscription renew",
+    "meta_info": {"plan": "gold"},
+    "webhook_url": "https://webhook.site/твой_webhook_id"
+  }'
+```
+4. Тест SSRF защиты (Должен вернуть 422)
+Попытка заставить воркер ломануть внутреннюю сеть или базу данных упадет еще на этапе валидации в API:
+
+```Bash
+curl -i -X POST "http://localhost:8000/api/v1/payments" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_secret_key" \
+  -H "Idempotency-Key: pay_req_uuid_003" \
+  -d '{
+    "amount": 10.00,
+    "currency": "eur",
+    "description": "SSRF test",
+    "meta_info": {},
+    "webhook_url": "[http://127.0.0.1:5432](http://127.0.0.1:5432)"
+  }'
+```
+
+5. Получение инфы о платеже
+```Bash
+curl -i -X GET "http://localhost:8000/api/v1/payments/{подставьте_id_из_ответа_создания}" \
+  -H "X-API-Key: your_secret_key"
+```
+
+6. Проверка работоспособности DLQ (передаем несуществующий webhook_url)
+```bash
+curl -i -X POST "http://localhost:8000/api/v1/payments" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_secret_key" \
+  -H "Idempotency-Key: payment_uuid_333333" \
+  -d '{
+    "amount": 500.00,
+    "currency": "usd",
+    "webhook_url": "https://webhook.site/000000"                         
+  }'
+```
+Панель управления RabbitMQ висит на http://localhost:15672 (логин: guest, пароль: guest). Там можно вживую посмотреть на очереди payments.new и упавшие по ретраям сообщения в payments.new.dlq в последнем тесте.
+
+
