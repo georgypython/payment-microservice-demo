@@ -60,3 +60,12 @@ class PaymentFullResponseSchema(NewPaymentResponseSchema):
     idempotency_key: str = Field(..., max_length=64)
     webhook_url: str = Field(..., max_length=2048)
     processing_at: datetime | None = None
+
+
+class WebhookPayloadSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    status: PaymentStatus
+    amount: Decimal
+    currency: CurrencyType

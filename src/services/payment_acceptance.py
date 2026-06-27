@@ -16,7 +16,7 @@ from src.models.enums import PaymentStatus
 from src.core.logger_setup import logger
 
 
-class PaymentsService:
+class PaymentAcceptanceService:
     def __init__(
         self,
         session: AsyncSession,
@@ -66,10 +66,9 @@ class PaymentsService:
             payment_orm = await self._add_new_payment_orm(payment, idempotency_key)
             payment_id = payment_orm.id
             message = PaymentEventSchema(payment_id=payment_id)
-            queue = self.queue + ".new"
 
             event_orm = await self._add_new_outbox_event_orm(
-                idempotency_key, message.model_dump(), queue
+                idempotency_key, message.model_dump(), self.queue
             )
             await self.session.commit()
             logger.info(f"New payment with outbox created, id: {payment_id}")
@@ -80,7 +79,7 @@ class PaymentsService:
 
         try:
             await self.broker.publish(
-                message=message, queue=queue, exchange=self.exchange
+                message=message, queue=self.queue, exchange=self.exchange
             )
             event_orm.is_processed = True
             await self.session.commit()

@@ -1,5 +1,6 @@
 from typing import AsyncGenerator
 
+import httpx
 from dishka import Provider, Scope, provide
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,3 +13,12 @@ class InfrastructureProvider(Provider):
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         async with db_helper.session_factory() as session:
             yield session
+
+    @provide(scope=Scope.APP)
+    async def get_http_client(self) -> AsyncGenerator[httpx.AsyncClient, None]:
+        timeout = httpx.Timeout(30.0, connect=10.0)
+        limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        async with httpx.AsyncClient(
+            timeout=timeout, limits=limits, follow_redirects=False
+        ) as client:
+            yield client

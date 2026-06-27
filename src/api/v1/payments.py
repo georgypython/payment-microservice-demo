@@ -7,7 +7,7 @@ from starlette.status import HTTP_404_NOT_FOUND
 from src.dependencies.auth import require_api_key
 from src.exceptions.payments import IdempotencyKeyError, NotFoundError
 from src.schemas.payment import CreatePaymentSchema, NewPaymentResponseSchema
-from src.services.payments import PaymentsService
+from src.services import PaymentAcceptanceService
 
 router = APIRouter(
     dependencies=[Depends(require_api_key)],
@@ -20,7 +20,7 @@ router = APIRouter(
 )
 async def create_new_payment(
     payment: CreatePaymentSchema,
-    service: FromDishka[PaymentsService],
+    service: FromDishka[PaymentAcceptanceService],
     idempotency_key: str = Header(..., alias="Idempotency-Key", max_length=64),
 ):
     try:
@@ -34,7 +34,7 @@ async def create_new_payment(
 @router.get("/{payment_id}", status_code=status.HTTP_200_OK)
 async def get_payment_info(
     payment_id: UUID,
-    service: FromDishka[PaymentsService],
+    service: FromDishka[PaymentAcceptanceService],
 ):
     try:
         return await service.get_payment_info(payment_id)

@@ -15,7 +15,6 @@ class OutboxEventOrm(Base, UUIDPKMixin, CreatedAtMixin):
     queue: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[dict] = mapped_column(JSONB, nullable=False)
     attempt: Mapped[int] = mapped_column(nullable=False, default=0)
-    max_attempts: Mapped[int] = mapped_column(nullable=False, default=3)
 
     is_processed: Mapped[bool] = mapped_column(
         default=False, index=True, nullable=False

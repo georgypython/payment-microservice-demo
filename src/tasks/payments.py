@@ -1,11 +1,14 @@
-from faststream.rabbit import RabbitRouter
 from dishka.integrations.faststream import FromDishka
 
-from src.services import PaymentsService
+from src.schemas.payment import PaymentEventSchema
+from src.services import PaymentProcessingService
+from .broker import broker, main_queue
 
-router = RabbitRouter(prefix="payments")
 
-
-@router.subscriber(queue="new")
-async def new_payment(service: FromDishka[PaymentsService]):
-    pass
+@broker.subscriber(queue=main_queue)
+async def new_payment(
+    message: PaymentEventSchema, service: FromDishka[PaymentProcessingService]
+):
+    result = await service.process_new_payment(message)
+    if not result:
+        raise ValueError("Payment Processing failed")

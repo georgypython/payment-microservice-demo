@@ -73,6 +73,10 @@ class RabbitConfig(BaseModel):
     fail_fast: bool = True
 
 
+class OutboxConfig(BaseModel):
+    max_attempts: int = 10
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=BASE_PATH / ".env",
@@ -85,6 +89,7 @@ class Settings(BaseSettings):
     db: DbConfig = DbConfig()
     auth: AuthConfig = AuthConfig()
     rabbit: RabbitConfig = RabbitConfig()
+    outbox: OutboxConfig = OutboxConfig()
 
 
 settings = Settings()
