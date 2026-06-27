@@ -33,7 +33,7 @@ class ApiPrefix(BaseModel):
 
 
 class DbConfig(BaseModel):
-    host: str = "localhost"
+    host: str = "postgres"
     passwd: str = "postgres"
     user: str = "postgres"
     name: str = "postgres"
@@ -57,7 +57,7 @@ class AuthConfig(BaseModel):
 
 
 class RabbitConfig(BaseModel):
-    host: str = "localhost"
+    host: str = "rabbitmq"
     user: str = "guest"
     passwd: str = "guest"
     port: int = 5672

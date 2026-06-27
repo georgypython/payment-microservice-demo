@@ -16,6 +16,53 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    container_name: app-rabbit
+    ports:
+      - "${RABBIT__PORT:-5672}:5672"       
+      - "15672:15672"                      
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBIT__USER:-guest}"
+      RABBITMQ_DEFAULT_PASS: "${RABBIT__PASSWD:-guest}"
+      RABBITMQ_DEFAULT_VHOST: "${RABBIT__VHOST:-/}"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: app-api
+    command:
+      - sh
+      - -c
+      - alembic -c /app/alembic.ini upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build: .
+    container_name: app-faststream-worker
+    command: faststream run src.workers.faststream:app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
 volumes:
   postgres_data:
-
+  rabbitmq_data:
