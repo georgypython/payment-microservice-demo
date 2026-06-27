@@ -11,6 +11,8 @@ broker = RabbitBroker(
 
 dlq_queue = RabbitQueue(name="payments.new.dlq", auto_delete=False)
 
+broker.declare_queue(dlq_queue)
+
 main_queue = RabbitQueue(
     name="payments.new",
     auto_delete=False,
