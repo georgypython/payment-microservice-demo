@@ -75,6 +75,8 @@ class RabbitConfig(BaseModel):
 
 class OutboxConfig(BaseModel):
     max_attempts: int = 10
+    sleep_delay: int = 30
+    batch_size: int = 50
 
 
 class Settings(BaseSettings):

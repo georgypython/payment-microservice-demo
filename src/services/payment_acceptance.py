@@ -85,7 +85,7 @@ class PaymentAcceptanceService:
             await self.session.commit()
         except Exception as e:
             logger.warning(
-                f"Broker publish failed, message handles by daemon. Error: {e}"
+                f"Broker publish failed, message handles by outbox daemon. Error: {e}"
             )
         return NewPaymentResponseSchema.model_validate(payment_orm)
 

@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,14 +10,27 @@ from src.api import router as api_router
 from src.core.config import settings
 from src.models.db_helper import db_helper
 from src.dependencies.container import container
+from src.tasks.outbox import outbox_daemon
+from src.tasks.broker import broker
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    outbox_task = asyncio.create_task(
+        outbox_daemon(container, settings.outbox.sleep_delay)
+    )
+    await broker.connect()
+
     yield
-    # Shutdown
+
+    outbox_task.cancel()
+    try:
+        await outbox_task
+    except asyncio.CancelledError:
+        pass
+
     await db_helper.dispose()
+    await broker.stop()
 
 
 app = FastAPI(
