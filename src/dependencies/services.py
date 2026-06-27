@@ -2,9 +2,12 @@ from dishka import Provider, Scope, provide
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services import PaymentAcceptanceService, PaymentProcessingService
-from src.services.outbox import OutboxService
-from src.tasks.broker import broker
+from src.services import (
+    PaymentAcceptanceService,
+    PaymentProcessingService,
+    OutboxService,
+)
+from src.infrastructure import broker
 from src.core.config import settings
 
 

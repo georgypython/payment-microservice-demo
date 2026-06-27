@@ -2,7 +2,7 @@ from faststream import FastStream
 from dishka.integrations.faststream import setup_dishka
 
 from src.dependencies.container import container
-from .broker import broker
+from src.infrastructure import broker
 
 app = FastStream(broker)
 

@@ -8,10 +8,9 @@ from dishka.integrations.fastapi import setup_dishka
 
 from src.api import router as api_router
 from src.core.config import settings
-from src.models.db_helper import db_helper
 from src.dependencies.container import container
-from src.tasks.outbox import outbox_daemon
-from src.tasks.broker import broker
+from src.workers import outbox_daemon
+from src.infrastructure import broker, db_helper
 
 
 @asynccontextmanager

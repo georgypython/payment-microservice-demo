@@ -4,7 +4,7 @@ import httpx
 from dishka import Provider, Scope, provide
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.db_helper import db_helper
+from src.infrastructure import db_helper
 
 
 class InfrastructureProvider(Provider):
