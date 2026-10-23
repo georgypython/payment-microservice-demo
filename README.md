@@ -1,6 +1,6 @@
 # Demo / FUN Payment API
 
-An asynchronous payment processing service built with FastAPI, RabbitMQ, and PostgreSQL. It simulates payment gateway operations, tracks payment statuses, and delivers webhook notifications.
+An asynchronous payment processing service built with FastAPI, FastStream, RabbitMQ, and PostgreSQL. It simulates payment gateway operations, tracks payment statuses, and delivers webhook notifications.
 
 ## Features
 
