@@ -1,148 +1,150 @@
-# Тестовое задание: Сервис асинхронного процессинга платежей
+# Demo / FUN Payment API
 
-Сервис принимает запросы на оплату, обрабатывает их через эмуляцию шлюза и шлет вебхуки с результатом. Сделано с расчетом на надежность и скорость, без лишних тормозов при обработке запроса.
-Для быстрого старта я использовал свой собственный шаблон FastAPI приложения: [my-fastapi-template](https://github.com/megakaizo/my-fastapi-template)
+An asynchronous payment processing service built with FastAPI, RabbitMQ, and PostgreSQL. It simulates payment gateway operations, tracks payment statuses, and delivers webhook notifications.
 
+## Features
 
----
+- **Async payment processing** — API accepts payments and delegates processing to background workers.
+- **Transactional Outbox** — payment records and outgoing events are stored atomically, with direct publishing and a background recovery mechanism.
+- **Webhook delivery** — automatic retries with exponential backoff and a Dead Letter Queue (DLQ) for failed deliveries.
+- **Idempotency** — duplicate requests are rejected using `Idempotency-Key`.
+- **SSRF protection** — basic validation of webhook URLs.
+- **Dependency Injection** — application components are wired using Dishka.
+- **Simulated payment gateway** — configurable infrastructure with artificial processing delays and failures.
 
-## Как устроена архитектура
+## Stack
 
-Вместо стандартной сухой реализации из учебников, я доработал несколько моментов, чтобы система вела себя как реальный продакшн-сервис.
+- **API:** FastAPI
+- **Message Broker:** RabbitMQ
+- **Database:** PostgreSQL
+- **ORM:** SQLAlchemy (async)
+- **Migrations:** Alembic
+- **Worker:** FastStream
+- **Dependency Injection:** Dishka
+- **Configuration:** Pydantic Settings
+- **Runtime:** Docker Compose
 
-### 1. Оптимизированный Outbox паттерн
-Чтобы гарантировать доставку сообщений и не ломать транзакционность, платеж и событие для брокера сохраняются в базу (`outbox_events`) атомарно в одной транзакции. 
+## Quick Start
 
-Но если просто складывать задачи в базу и ждать фоновый outbox процесс обработки — клиент будет получать тупые задержки. Поэтому я разделил логику:
-* **Основной путь (быстрый):** Сразу после успешного коммита в БД, API сам пытается напрямую выстрелить сообщением в RabbitMQ. В 99% случаев это происходит мгновенно, и сообщение улетает в воркер без задержек.
-* **Резервный путь (медленный)** Если в момент прямой отправки RabbitMQ прилег, моргнула сеть или брокер перегружен — API **не падает с ошибкой** и спокойно отдает клиенту `202 Accepted`. Запись уже в базе. Фоновый задача `outbox_daemon` раз в несколько секунд сканирует таблицу аутбокса, находит пропущенные задачи и гарантированно с повторной обработкой ошибок и счетчиком ретраев досылает их в Кролика.
+### Requirements
 
-### 2. Полная изоляция воркера
-Воркер (`src/consumers/payments.py`) спроектирован максимально независимым. Он **абсолютно ничего не знает про таблицу `outbox_events`** и логику сохранения событий. Он просто сидит на очереди RabbitMQ, забирает оттуда чистый JSON, эмулирует шлюз (2-5 сек, 10% ошибок), обновляет статус самого платежа и шлет вебхук.
+- Docker
+- Docker Compose
 
-### 3. Логика ретраев и DLQ (Dead Letter Queue)
-При отправке вебхука воркер делает 3 попытки с экспоненциальной задержкой (если клиентский сервер временно лежит). Если после 3 раз вебхук так и не ушел, сообщение отправляется в DLQ `payments.new.dlq`. Создается при запуске приложения вместе с основной очередью (`payments.new`).
+### 1. Configure environment
 
-### 4. Идемпотентность и базовая защита от SSRF
-* **Идемпотентность:** Жестко проверяется по заголовку `Idempotency-Key`. Повторный запрос с тем же ключом не создает платеж и не плодит события, а сразу возвращает `409 Conflict` (так же колонка `idempotency_key` в БД уникальна).
-* **Защита от SSRF:** Так как URL вебхука передается в body запроса, я от себя накрутил на него базовый валидатор для защиты от SSRF атак.
----
-
-## Структура кода (`src/`)
-
-Вся логика раскидана по слоям, сервисы и клиенты собираются через DI-контейнер Dishka.
-
-* `src/api/` — HTTP эндпоинты на FastAPI.
-* `src/consumers/` — Подписчики RabbitMQ. Тут лежит FastStream воркер, который обрабатывает платежи.
-* `src/core/` — Конфиг приложения (pydantic-settings) и настройки логгера.
-* `src/dependencies/` — Настройка DI-контейнера Dishka (сборка инфраструктуры и сервисов).
-* `src/exceptions/` — Внутренние классы ошибок бизнес-логики.
-* `src/infrastructure/` — Инициализация клиентов (асинхронный движок SQLAlchemy через хелпер-помощник и RabbitBroker).
-* `src/models/` — ORM модели для SQLAlchemy (таблицы `payments` и `outbox_events`).
-* `src/schemas/` — Pydantic схемы для валидации запросов.
-* `src/services/` — Сервисы с бизнес логикой по каждому сценарию (Прием платежа, обработка платежа, обработка outbox эвентов)
-* `src/workers/` — Точки входа для: `faststream.py` (воркер очереди) и `outbox_daemon.py` (фоновый демон аутбокса - в данном случае реализовал через обычный asyncio.create_task в lifespan приложения).
-
----
-
-## Инструкция по запуску
-
-Проект полностью настроен и заведется на дефолтных значениях (`guest` для rabbitmq и `postgres` для db). Нужно только создать `.env` файл и прописать туда API ключ по аналогии с `.env.example` (по умолчанию ключ там называется `your_secret_key` - для удобства тестирования можно так и оставить).
-
-Запуск:
-
-1. Сделать копию конфига:
 ```bash
 cp .env.example .env
 ```
 
-2. Поднять compose (миграции для удобства накатятся автоматически в контейнере api):
+Edit `.env` if needed. The default configuration uses local Docker Compose services and a development API key.
+
+### 2. Start the service
+
 ```bash
 docker compose up --build -d
 ```
 
+Database migrations are applied automatically by the API container.
 
-## Тестирование
+### 3. Verify the service
 
-Для начала следует получить свой URL для приема вебхуков на `https://webhook.site`
-В последующих Payload для приема вебхуков необходимо заменить URL на него.
+The API is available at:
 
-Примеры CURL запросов:
+- **Base URL:** `http://localhost:8000`
+- **RabbitMQ Management UI:** [http://localhost:15672](http://localhost:15672) — `guest` / `guest`
 
-1. Создание обычного платежа (202 Accepted)
+Check the repository for the configured health-check endpoint and API documentation route.
 
-```Bash
-curl -i -X POST "http://localhost:8000/api/v1/payments" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your_secret_key" \
-  -H "Idempotency-Key: pay_req_uuid_001" \
-  -d '{
-    "amount": 2500.75,
-    "currency": "rub",
-    "description": "Оплата заказа #432",
-    "meta_info": {"user_id": 99, "device": "mobile"},
-    "webhook_url": "https://webhook.site/твой_webhook_id"
-  }'
-```
+## API Usage
 
-2. Проверка идемпотентности (Должен вернуть 409)
-Повтори предыдущий запрос с тем же самым Idempotency-Key. База не задублируется, сервер выдаст конфликт:
+All payment endpoints require the `X-API-Key` header. Payment creation also requires an `Idempotency-Key`.
 
-```JSON
-{
-  "detail": "Idempotency key conflict"
-}
-```
+### Create a payment
 
-3. Платеж в другой валюте (USD)
-```Bash
-curl -i -X POST "http://localhost:8000/api/v1/payments" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your_secret_key" \
-  -H "Idempotency-Key: pay_req_uuid_002" \
-  -d '{
-    "amount": 50.00,
-    "currency": "usd",
-    "description": "Subscription renew",
-    "meta_info": {"plan": "gold"},
-    "webhook_url": "https://webhook.site/твой_webhook_id"
-  }'
-```
-4. Тест SSRF защиты (Должен вернуть 422)
-Попытка заставить воркер ломануть внутреннюю сеть или базу данных упадет еще на этапе валидации в API:
+Replace the webhook URL with your endpoint from [webhook.site](https://webhook.site) to inspect delivery attempts.
 
-```Bash
-curl -i -X POST "http://localhost:8000/api/v1/payments" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your_secret_key" \
-  -H "Idempotency-Key: pay_req_uuid_003" \
-  -d '{
-    "amount": 10.00,
-    "currency": "eur",
-    "description": "SSRF test",
-    "meta_info": {},
-    "webhook_url": "http://localhost:5000"
-  }'
-```
-
-5. Получение инфы о платеже
-```Bash
-curl -i -X GET "http://localhost:8000/api/v1/payments/{подставьте_id_из_ответа_создания}" \
-  -H "X-API-Key: your_secret_key"
-```
-
-6. Проверка работоспособности DLQ (передаем несуществующий webhook_url)
 ```bash
 curl -i -X POST "http://localhost:8000/api/v1/payments" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your_secret_key" \
-  -H "Idempotency-Key: payment_uuid_333333" \
+  -H "Idempotency-Key: pay_req_001" \
   -d '{
-    "amount": 500.00,
-    "currency": "usd",
-    "webhook_url": "https://webhook.site/000000"                         
+    "amount": 2500.75,
+    "currency": "rub",
+    "description": "Order #432",
+    "meta_info": {
+      "user_id": 99,
+      "device": "mobile"
+    },
+    "webhook_url": "https://webhook.site/YOUR_WEBHOOK_ID"
   }'
 ```
-Панель управления RabbitMQ висит на http://localhost:15672 (логин: guest, пароль: guest). Там можно вживую посмотреть на очереди payments.new и упавшие по ретраям сообщения в payments.new.dlq в последнем тесте.
+
+A successful submission returns `202 Accepted`. Payment processing happens asynchronously.
+
+### Get payment status
+
+Replace `PAYMENT_ID` with the ID returned when creating the payment.
+
+```bash
+curl -i "http://localhost:8000/api/v1/payments/PAYMENT_ID" \
+  -H "X-API-Key: your_secret_key"
+```
+
+### Test idempotency
+
+Repeat the creation request with the same `Idempotency-Key`. The API returns `409 Conflict` instead of creating a duplicate payment.
+
+### Test webhook retries and DLQ
+
+Use an unreachable webhook endpoint, then inspect the worker logs and RabbitMQ Management UI. After the configured delivery retries are exhausted, the failed message is routed to `payments.new.dlq`.
+
+### Test webhook URL validation
+
+Try submitting a webhook URL pointing to a localhost or internal network address. The request should fail validation with `422 Unprocessable Entity`.
+
+## Architecture
+
+```text
+Client
+  |
+  v
+FastAPI -----> PostgreSQL
+  |                |
+  |                +-- payments
+  |                +-- outbox_events
+  |
+  +----> RabbitMQ ----> Payment Worker
+  |                          |
+  |                          +--> Simulated gateway
+  |                          +--> Webhook delivery
+  |
+  +----> Outbox Daemon
+             |
+             +--> Recovers unpublished events
+```
+
+The Outbox pattern ensures that payment creation and event persistence happen in a single database transaction. The API attempts to publish events immediately after committing, while a background daemon recovers events that could not be published.
+
+The worker is independent of the Outbox implementation: it consumes messages from RabbitMQ, simulates payment processing, updates payment status, and delivers webhooks.
+
+## Project Structure
+
+- `src/api/` — FastAPI endpoints
+- `src/consumers/` — RabbitMQ message consumers
+- `src/core/` — application configuration and logging
+- `src/dependencies/` — Dishka dependency injection
+- `src/infrastructure/` — database and broker setup
+- `src/models/` — SQLAlchemy ORM models
+- `src/schemas/` — request and response schemas
+- `src/services/` — payment and Outbox business logic
+- `src/workers/` — worker and Outbox daemon entry points
+
+## One thing
+
+This is a demo project with a simulated payment gateway. It is intended for learning and experimentation, not for processing real payments or handling production financial data.
+
+тесте.
 
 
